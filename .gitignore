@@ -1,0 +1,3 @@
+data/*.fits
+.ipynb_checkpoints/
+__pycache__/

@@ -1,0 +1,14 @@
+name: disks
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pandas
+  - scikit-learn
+  - astropy
+  - matplotlib
+  - scipy
+  - numpy
+  - jupyterlab
+  - astroquery
+prefix: C:\Users\srami\miniforge3\envs\disks
