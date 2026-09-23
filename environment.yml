@@ -11,4 +11,3 @@ dependencies:
   - numpy
   - jupyterlab
   - astroquery
-prefix: C:\Users\srami\miniforge3\envs\disks
