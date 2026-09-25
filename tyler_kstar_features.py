@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt  # Moved to top
 import seaborn as sns 
 from sklearn.preprocessing import RobustScaler
 
-df = pd.read_csv(Path(__file__).with_name("SEIP_data.csv")) 
+df = pd.read_csv(r'data\SEIP_data.csv') 
 
 # STEP 1: Cleaning and Filtering the Data 
 cols_to_clean = ['Teff', 'logg', 'm1_f_psf', 'm1_snr','i2_f_ap2','i2_snr', 'i4_f_ap2','i4_snr','i1_f_ap2'] 
