@@ -3,3 +3,5 @@ data/*.fits
 __pycache__/
 .vscode/
 data/*.csv
+SEIP_data*.csv
+RJ_Candidates.csv

@@ -22,7 +22,7 @@ FEATURES = ['norm_chi24', 'norm_chi8', 'norm_chi45']
 # ---- Load Tyler's K dwarf table (quietly) ----
 with warnings.catch_warnings(), contextlib.redirect_stdout(io.StringIO()):
     warnings.simplefilter('ignore')
-    from tyler_kstar_features import df_kdwarf
+    from tyler_kstar_features_v2 import df_kdwarf
 
 # ---- SIMBAD cross match: keep the closest match for each star ----
 sim = pd.read_csv(r'data\kdwarf_simbad.csv')
