@@ -6,7 +6,15 @@ Based on Tyler's Fits_cropping_template.py, with these changes:
   - box size is set in arcseconds, so every band shows the same patch of sky
   - N and E arrows come from the WCS, so they're right even if the image is rotated
   - a small circle marks the star's position
+
+Any star, from the command line (defaults are J2133+83 and the paths below):
+    python star_cutouts.py --name J0845-78 --ra 131.32254 --dec -78.99364 --box 120 ^
+        --i1 path\\to\\SPITZER_I1_..._maic.fits --i4 path\\to\\SPITZER_I4_..._maic.fits ^
+        --m1 path\\to\\SPITZER_M1_..._maic.fits
+(--box 120 shows a wider patch, handy for spotting spikes or rings from a bright star nearby)
 """
+import argparse
+
 import numpy as np
 import matplotlib.pyplot as plt
 from astropy.io import fits
@@ -18,13 +26,27 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 # --- STEP 1: the star and the box size ---
 STAR_NAME = 'J2133+83'
-STAR = SkyCoord(323.2822 * u.deg, 83.0837 * u.deg, frame='icrs')
+STAR_RA, STAR_DEC = 323.2822, 83.0837
 BOX_ARCSEC = 49.0  # same 49" box Tyler used
 
 # --- STEP 2: paste your local file paths (the _maic.fits files from SHA) ---
 file_3_6 = r'3.6 um file goes here'   # IRAC ch1, SPITZER_I1_..._maic.fits
 file_8_0 = r'8.0 um file goes here'   # IRAC ch4, SPITZER_I4_..._maic.fits
 file_24  = r'24.0 um file goes here'  # MIPS 24,  SPITZER_M1_..._maic.fits
+
+# Command line options override the values above
+parser = argparse.ArgumentParser()
+parser.add_argument('--name', default=STAR_NAME)
+parser.add_argument('--ra', type=float, default=STAR_RA, help='degrees')
+parser.add_argument('--dec', type=float, default=STAR_DEC, help='degrees')
+parser.add_argument('--box', type=float, default=BOX_ARCSEC, help='box size in arcsec')
+parser.add_argument('--i1', default=file_3_6, help='3.6 um (or 4.5 um) file')
+parser.add_argument('--i4', default=file_8_0, help='8.0 um file')
+parser.add_argument('--m1', default=file_24, help='24 um file')
+args = parser.parse_args()
+STAR_NAME, BOX_ARCSEC = args.name, args.box
+STAR = SkyCoord(args.ra * u.deg, args.dec * u.deg, frame='icrs')
+file_3_6, file_8_0, file_24 = args.i1, args.i4, args.m1
 
 # Heads up: IRAC's 3.6/5.8 and 4.5/8.0 cameras look at two side-by-side patches of sky.
 # If the 3.6 file doesn't cover the star, use the 4.5 file (I2) from the same AOR instead.
