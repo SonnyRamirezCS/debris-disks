@@ -25,6 +25,9 @@ Run from the debris-disks folder:  python excess_shape.py
 Needs data/kdwarf_sfr.csv (made by sfr_cut.py)
 Makes data/excess_shape.csv and figures/excess_shape.png
 """
+import os
+os.environ.setdefault('OMP_NUM_THREADS', '1')   # quiets a harmless KMeans warning on Windows
+
 import warnings
 from pathlib import Path
 
