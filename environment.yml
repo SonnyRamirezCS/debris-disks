@@ -11,3 +11,5 @@ dependencies:
   - numpy
   - jupyterlab
   - astroquery
+  - fsspec
+  - aiohttp
