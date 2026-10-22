@@ -1,0 +1,45 @@
+=== J0845-78  RA 131.322558  Dec -78.993645 ===
+MIPS 24 : J0845-78_seip_M1.fits
+IRAC 3.6: J0845-78_seip_I1.fits
+IRAC 8.0: J0845-78_seip_I4.fits
+
+Coverage (is the star on real data?)
+  MIPS 24 : yes  (pixel x=97.5, y=97.5, scale 2.450"/pix)
+  IRAC 3.6: yes  (pixel x=399.3, y=399.2, scale 0.600"/pix)
+  IRAC 8.0: yes  (pixel x=399.3, y=399.2, scale 0.600"/pix)
+
+MIPS 24 aperture photometry (forced at the star position)
+  aperture 7.0", sky annulus 20.0-32.0", aperture correction 1.61
+  sky = 2.44106 MJy/sr, sky scatter = 0.01473 MJy/sr (332 pix)
+  flux before correction = 303.5 uJy
+  flux after correction  = 488.7 +/- 17.6 uJy  (error is a lower limit)
+  catalog flux = 510.40 +/- 15.56 uJy  ->  yours / catalog = 0.96
+  [24] = 10.416 mag (zero point 7.17 Jy)
+  Ks - [24] = 2.217 mag  (a bare K dwarf photosphere is close to 0)
+  catalog: [24] = 10.369, Ks - [24] = 2.264
+
+MIPS 24 source fit (2D Gaussian)
+  center offset from star = 2.17" (PA 347 deg)
+  FWHM = 6.4" x 5.5" (MIPS 24 point source is about 5.9")
+  peak S/N per pixel ~ 20.7
+
+Other sources near the star (local peaks above 5 sigma)
+  sep = arcsec from star, PA = deg east of north, S/N is rough
+  IRAC 3.6: star detected = yes; 0 other peak(s) within 12"
+  IRAC 8.0: star detected = yes; 0 other peak(s) within 12"
+  MIPS 24: star detected = yes; 1 other peak(s) within 25"
+      sep  19.3"  PA    71  S/N    9.4
+
+MIPS pointing check (is the whole 24um image shifted vs IRAC 3.6?)
+  other 24um sources found: 95; matched to one IRAC source: 3
+  (skipped: 54 no IRAC match, 0 more than one IRAC match, 38 bad fit)
+  J0845-78 24um center vs its IRAC position: east -0.79", north +2.51" (total 2.63")
+  whole-image shift (median of field sources): east -0.30", north +0.49" (total 0.58")
+  scatter of field sources: east 0.25", north 0.10"
+  J0845-78 after removing the shift: east -0.49", north +2.02" (total 2.07", 20.3x the field scatter)
+  -> still offset after removing the shift. The 24um light may not be centered on the star.
+
+Flags
+  * 24um center is 2.1" from the star after removing the image shift (20.3x the field scatter). The 24um light may not come from the star.
+
+Figure saved: C:\Users\srami\debris-disks\vetting\results\J0845-78_cutouts.png

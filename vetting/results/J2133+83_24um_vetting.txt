@@ -1,0 +1,46 @@
+=== J2133+83  RA 323.282217  Dec 83.083677 ===
+MIPS 24 : J2133+83_seip_M1.fits
+IRAC 3.6: J2133+83_seip_I1.fits
+IRAC 8.0: J2133+83_seip_I4.fits
+
+Coverage (is the star on real data?)
+  MIPS 24 : yes  (pixel x=97.2, y=97.5, scale 2.450"/pix)
+  IRAC 3.6: yes  (pixel x=399.5, y=399.9, scale 0.600"/pix)
+  IRAC 8.0: yes  (pixel x=399.5, y=399.9, scale 0.600"/pix)
+
+MIPS 24 aperture photometry (forced at the star position)
+  aperture 7.0", sky annulus 20.0-32.0", aperture correction 1.61
+  sky = 2.88509 MJy/sr, sky scatter = 0.01691 MJy/sr (329 pix)
+  flux before correction = 316.4 uJy
+  flux after correction  = 509.4 +/- 20.2 uJy  (error is a lower limit)
+  catalog flux = 509.00 +/- 9.29 uJy  ->  yours / catalog = 1.00
+  [24] = 10.371 mag (zero point 7.17 Jy)
+  Ks - [24] = 2.709 mag  (a bare K dwarf photosphere is close to 0)
+  catalog: [24] = 10.372, Ks - [24] = 2.708
+
+MIPS 24 source fit (2D Gaussian)
+  center offset from star = 1.05" (PA 77 deg)
+  FWHM = 6.6" x 6.1" (MIPS 24 point source is about 5.9")
+  peak S/N per pixel ~ 17.1
+
+Other sources near the star (local peaks above 5 sigma)
+  sep = arcsec from star, PA = deg east of north, S/N is rough
+  IRAC 3.6: star detected = yes; 1 other peak(s) within 12"
+      sep   3.5"  PA   184  S/N   84.3
+  IRAC 8.0: star detected = yes; 0 other peak(s) within 12"
+  MIPS 24: star detected = yes; 0 other peak(s) within 25"
+
+MIPS pointing check (is the whole 24um image shifted vs IRAC 3.6?)
+  other 24um sources found: 81; matched to one IRAC source: 42
+  (skipped: 9 no IRAC match, 12 more than one IRAC match, 18 bad fit)
+  J2133+83 24um center vs its IRAC position: east +1.25", north +0.27" (total 1.28")
+  whole-image shift (median of field sources): east +0.35", north +0.83" (total 0.90")
+  scatter of field sources: east 0.35", north 0.25"
+  J2133+83 after removing the shift: east +0.90", north -0.56" (total 1.06", 3.4x the field scatter)
+  -> still offset after removing the shift. The 24um light may not be centered on the star.
+
+Flags
+  * 1 other IRAC 3.6 source(s) within 6" of the star. These could blend into the 24um beam.
+  * 24um center is 1.1" from the star after removing the image shift (3.4x the field scatter). The 24um light may not come from the star.
+
+Figure saved: C:\Users\srami\debris-disks\vetting\results\J2133+83_cutouts.png
