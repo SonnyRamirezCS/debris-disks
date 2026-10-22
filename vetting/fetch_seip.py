@@ -136,6 +136,17 @@ def is_science(row):
     return not any(k in fname for k in ("unc", "cov", "std", "mask", "err"))
 
 
+def is_short(row):
+    """True for the short-exposure ("-short") IRAC mosaics from HDR mode.
+
+    Those only exist to recover bright stars, so they're much shallower. Faint
+    field sources don't show up in them, which breaks vet_24um's pointing check
+    (J0845-78 only matched 3 field sources on its -short mosaic).
+    """
+    fname = str(col(row, "access_url", "")).lower().split("?")[0].split("/")[-1]
+    return "-short" in fname or "_short" in fname
+
+
 def candidates_by_band(table, coord, smid):
     """{band: [rows]} with the most likely mosaic first."""
     out = {}
@@ -153,7 +164,7 @@ def candidates_by_band(table, coord, smid):
             sep = coord.separation(c).deg
         except (TypeError, ValueError):
             sep = 999.0
-        return (not has_smid, sep)
+        return (not has_smid, is_short(row), sep)
 
     for band in out:
         out[band].sort(key=rank)
