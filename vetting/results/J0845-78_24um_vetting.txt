@@ -26,20 +26,21 @@ MIPS 24 source fit (2D Gaussian)
 Other sources near the star (local peaks above 5 sigma)
   sep = arcsec from star, PA = deg east of north, S/N is rough
   IRAC 3.6: star detected = yes; 0 other peak(s) within 12"
-  IRAC 8.0: star detected = yes; 0 other peak(s) within 12"
+  IRAC 8.0: star detected = yes; 1 other peak(s) within 12"
+      sep  10.1"  PA   127  S/N    5.2
   MIPS 24: star detected = yes; 1 other peak(s) within 25"
       sep  19.3"  PA    71  S/N    9.4
 
 MIPS pointing check (is the whole 24um image shifted vs IRAC 3.6?)
-  other 24um sources found: 95; matched to one IRAC source: 3
-  (skipped: 54 no IRAC match, 0 more than one IRAC match, 38 bad fit)
-  J0845-78 24um center vs its IRAC position: east -0.79", north +2.51" (total 2.63")
-  whole-image shift (median of field sources): east -0.30", north +0.49" (total 0.58")
-  scatter of field sources: east 0.25", north 0.10"
-  J0845-78 after removing the shift: east -0.49", north +2.02" (total 2.07", 20.3x the field scatter)
+  other 24um sources found: 95; matched to one IRAC source: 37
+  (skipped: 20 no IRAC match, 0 more than one IRAC match, 38 bad fit)
+  J0845-78 24um center vs its IRAC position: east -0.65", north +2.59" (total 2.67")
+  whole-image shift (median of field sources): east -0.17", north +0.25" (total 0.30")
+  scatter of field sources: east 0.36", north 0.40"
+  J0845-78 after removing the shift: east -0.48", north +2.33" (total 2.38", 6.0x the field scatter)
   -> still offset after removing the shift. The 24um light may not be centered on the star.
 
 Flags
-  * 24um center is 2.1" from the star after removing the image shift (20.3x the field scatter). The 24um light may not come from the star.
+  * 24um center is 2.4" from the star after removing the image shift (6.0x the field scatter). The 24um light may not come from the star.
 
 Figure saved: C:\Users\srami\debris-disks\vetting\results\J0845-78_cutouts.png
