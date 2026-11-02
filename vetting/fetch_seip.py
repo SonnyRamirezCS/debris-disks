@@ -147,6 +147,15 @@ def is_short(row):
     return "-short" in fname or "_short" in fname
 
 
+def is_median(row):
+    """True for the median-combined mosaic. SEIP has both a regular (mean)
+    mosaic and a median one per band. IRSA returns them in no fixed order, so
+    without this the same star could get either one on different runs. The
+    regular mosaic is preferred: it's less noisy and it's what the Oct 22 runs used."""
+    fname = str(col(row, "access_url", "")).lower().split("?")[0].split("/")[-1]
+    return "median" in fname
+
+
 def candidates_by_band(table, coord, smid):
     """{band: [rows]} with the most likely mosaic first."""
     out = {}
@@ -164,7 +173,7 @@ def candidates_by_band(table, coord, smid):
             sep = coord.separation(c).deg
         except (TypeError, ValueError):
             sep = 999.0
-        return (not has_smid, is_short(row), sep)
+        return (not has_smid, is_short(row), is_median(row), sep)
 
     for band in out:
         out[band].sort(key=rank)
