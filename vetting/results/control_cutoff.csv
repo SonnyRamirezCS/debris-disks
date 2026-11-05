@@ -1,0 +1,7 @@
+cutoff,cutoff_value,group,off_center,stars,percent,low_1sigma,high_1sigma
+1 in 10,5.251,control,6,52,11.5,7.8,16.7
+1 in 10,5.251,warm,4,18,22.2,14.0,33.3
+1 in 10,5.251,cool/flat,26,82,31.7,26.8,37.0
+1 in 20,6.417,control,3,52,5.8,3.3,9.9
+1 in 20,6.417,warm,3,18,16.7,9.7,27.1
+1 in 20,6.417,cool/flat,15,82,18.3,14.4,22.9
