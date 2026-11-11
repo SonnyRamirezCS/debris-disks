@@ -1,14 +1,22 @@
 """
-Fake disk test (injection and recovery), version 1, for the Dec 18 ML talk.
+Fake disk test (injection and recovery), version 2: tests both versions of the ML pipeline.
 
 The question someone will ask: "How do you know your ML would find a real disk?"
 This script answers it. It takes normal stars, adds the light of a fake dust disk,
-reruns the same pipeline as excess_shape.py, and counts how often the fake is found.
-That gives the faintest disk the ML can find, and checks that warm fakes land in
-the warm shape group.
+reruns the pipeline, and counts how often the fake is found. That gives the
+faintest disk the ML can find, and checks which shape group the fakes land in.
+
+Two versions of the pipeline are tested on the exact same fakes:
+  version 1 = excess_shape.py     Isolation Forest flags the weirdest 5% of stars;
+                                  KMeans groups on the 4.5 um shape, 8 um shape, 24 um size
+  version 2 = excess_shape_v2.py  Isolation Forest flags weirdness > 0.5;
+                                  KMeans groups on the 8 um shape and 24 um size only
+The first run of this test (Nov 9) found two problems with version 1. Version 2
+is the fix for both, and this run checks whether the fixes work.
 
 1. Hosts = comparable stars (Spitzer sees the star alone at 24 um) that look
-   normal: no real 24 um excess and not flagged by the Isolation Forest.
+   normal: no real 24 um excess and not flagged by version 1. The same 51 hosts
+   are used for both versions.
 2. Fake disk = a blackbody at dust temperature T with fractional luminosity
    f = L_dust / L_star (the dust gives off f times the star's total light).
    Its light is added to every band the pipeline uses (3.6, 4.5, 5.8, 8, 24 um),
@@ -16,29 +24,30 @@ the warm shape group.
    the same way a real disk would.
 3. One fake at a time replaces its host, then the pipeline runs again:
    Part A  Isolation Forest refit on the comparable stars with the fake in.
+           The two versions use the same forest, only the cutoff differs.
            FOUND = flagged AND passes the excess cut (>= 3 sigma and >= 1.2x),
-           the same rule excess_shape.py uses for "picked".
+           the same rule the pipeline uses for "picked".
    Part B  If the fake passes the excess cut: which shape group it lands in
-           (warm or cool/flat), and what dust temperature its 8/24 um shape gives.
+           (warm or cool/flat) in each version, and what dust temperature its
+           8/24 um shape gives (the same in both versions).
 4. Every host gets every fake on a grid of T and f, plus a copy of J2133+83's own
    disk (its T and f as measured by this same pipeline).
 
 Choices to know about:
 - Calibration, the KMeans groups and their scaling come from the real data and
   stay fixed. One fake star barely moves them.
-- The Isolation Forest flags the weirdest 5%, about 3 of 59 stars, and J2133+83
-  and J0845-78 already hold 2 of those spots. So a fake has to beat the 3rd
-  weirdest real star. That's how the real pipeline behaves, so the test keeps it.
 - Each fake gets its own random seed, so the result also averages over the
-  forest's randomness.
+  forest's randomness. Version 1's numbers are the same as the Nov 9 run.
 - L_star comes from Gaia G with A_G and BC_G = -0.16, same as j2133_numbers.py.
 - The host's measured fluxes already carry real noise. The dust light goes on top.
 
 Run from the debris-disks folder:  python fake_disks.py
 Quick test run (5 hosts):          python fake_disks.py --quick
 Needs data/kdwarf_sfr.csv (made by sfr_cut.py)
-Makes data/fake_disks.csv, data/fake_disks_summary.csv and figures/fake_disks.png
-Takes a few minutes. Uses all CPU cores; --jobs 1 runs on one core.
+Makes data/fake_disks.csv, data/fake_disks_summary.csv,
+  figures/fake_disks.png (version 1), figures/fake_disks_v2.png (version 2)
+  and figures/fake_disks_compare.png (the two side by side)
+Takes about a minute on 12+ cores. Uses all CPU cores; --jobs 1 runs on one core.
 """
 import os
 os.environ.setdefault('OMP_NUM_THREADS', '1')   # quiets a harmless KMeans warning on Windows
@@ -65,15 +74,20 @@ warnings.simplefilter('ignore', pd.errors.PerformanceWarning)
 HERE = Path(__file__).resolve().parent
 DATA, FIGS = HERE / 'data', HERE / 'figures'
 
-# ---- Pipeline settings (same as excess_shape.py, keep them in sync) ----
+# ---- Pipeline settings (same as excess_shape.py and excess_shape_v2.py, keep them in sync) ----
 TEFF_MIN, TEFF_MAX, EDGES = 3930, 5380, [4400, 4700]
 GROUPS = ['Late K', 'Mid K', 'Early K']
 SEE_MIN = 3          # star-only 24 um flux >= 3x its error = Spitzer can see the star alone
 CAL_SN = 5           # calibration stars need the star seen at >= 5x the error
 MIN_PLAIN = 5        # a group with fewer plain stars than this uses the all-K calibration
 EXCESS_SIG, EXCESS_RATIO = 3, 1.2
-CONTAMINATION = 0.05
+CONTAMINATION = 0.05 # version 1: flag the weirdest 5%
+WEIRD_CUT = 0.5      # version 2: flag weirdness > 0.5
 K_RANGE = range(2, 5)
+VERSIONS = {1: {'rule': 'weirdest 5%', 'B_FEAT': ['f_shape_I2', 'f_shape_I4', 'f_size'],
+                'saved': 'excess_shape.csv'},
+            2: {'rule': f'weirdness > {WEIRD_CUT}', 'B_FEAT': ['f_shape_I4', 'f_size'],
+                'saved': 'excess_shape_v2.csv'}}
 NAMED = {'SSTSL2 J213307.73+830501.2': 'J2133+83', 'SSTSL2 J084517.41-785937.1': 'J0845-78'}
 J2133 = 'SSTSL2 J213307.73+830501.2'
 
@@ -84,7 +98,6 @@ BANDS = list(FLUX)
 RAW = {'I1': 'i1_f_ap2', **{b: f for b, (f, _) in FLUX.items()}}   # every band the dust light goes into
 CAL_ERR = {'I2': 0.03, 'I3': 0.03, 'I4': 0.03, 'M1': 0.04}       # absolute calibration
 A_FEAT = ['z_I2', 'z_I4', 'z_M1']
-B_FEAT = ['f_shape_I2', 'f_shape_I4', 'f_size']
 h, c, k_B = 6.626e-34, 2.998e8, 1.381e-23
 SIGMA_SB = 5.670e-8
 BC_G = -0.16
@@ -94,6 +107,7 @@ T_GRID = [100, 150, 200, 250, 300, 400, 500]      # dust temperature (K)
 F_GRID = 10 ** np.arange(-5.0, -1.99, 0.25)       # L_dust / L_star, from 0.001% to 1% of the star's light
 LEVEL = 90                                        # "reliably found" = found in >= 90% of the normal stars
 MIN_FOR_PCT = 5                                   # need at least this many fakes before quoting a %
+BRIGHT_F = 1e-3                                   # "warm group" %s use fakes at f >= 0.1%
 
 
 # ======================================================================
@@ -179,6 +193,20 @@ def add_features(t, cal, cal_all):
     return t
 
 
+def fit_groups(B, feats):
+    """KMeans shape groups on the real stars, the same way excess_shape(_v2).py makes them."""
+    med = B[feats].median()
+    mad = 1.4826 * (B[feats] - med).abs().median()
+    X = ((B[feats] - med) / mad).to_numpy(float)    # plain numbers, so predicting the fakes gives no warning
+    scores = {kk: silhouette_score(X, KMeans(n_clusters=kk, n_init=20, random_state=0).fit_predict(X))
+              for kk in K_RANGE}
+    best_k = max(scores, key=scores.get)
+    km = KMeans(n_clusters=best_k, n_init=20, random_state=0).fit(X)
+    warm_label = int(pd.Series(B['shape_I4'].to_numpy()).groupby(km.labels_).median().idxmax())
+    return {'feats': feats, 'med': med, 'mad': mad, 'km': km, 'warm_label': warm_label, 'k': best_k,
+            'warm': km.labels_ == warm_label}
+
+
 def star_light(t):
     """Star's total light reaching us (W/m^2) from Gaia G, A_G and BC_G (same as j2133_numbers.py)."""
     return 2.518e-8 * 10**(-0.4 * (t['Gmag'] - np.nan_to_num(t['AG'], nan=0.0) + BC_G))
@@ -206,8 +234,10 @@ def run_host(h_i, pos, host, F_star, grid, Xa, ctx):
         fk[col] = fk[col] + dust_uJy(LAM[b], T_in, f_in, F_star)
     fk = add_features(add_ratios(fk), ctx['cal'], ctx['cal_all'])
 
-    # Part A: one Isolation Forest per fake, with the fake in place of its host
-    flagged, rank = np.zeros(len(fk), bool), np.full(len(fk), np.nan)
+    # Part A: one Isolation Forest per fake, with the fake in place of its host.
+    # Version 1 and 2 use the same forest; only the cutoff differs.
+    flag1, flag2 = np.zeros(len(fk), bool), np.zeros(len(fk), bool)
+    weird, rank = np.full(len(fk), np.nan), np.full(len(fk), np.nan)
     Z = fk[A_FEAT].to_numpy(float)
     for i in range(len(fk)):
         if not np.isfinite(Z[i]).all():
@@ -216,26 +246,31 @@ def run_host(h_i, pos, host, F_star, grid, Xa, ctx):
         X[pos] = Z[i]
         iso = IsolationForest(contamination=CONTAMINATION, random_state=1000 * h_i + i).fit(X)
         w = -iso.score_samples(X)
-        flagged[i] = iso.predict(X[pos:pos + 1])[0] == -1
+        flag1[i] = iso.predict(X[pos:pos + 1])[0] == -1     # version 1: weirdest 5%
+        flag2[i] = w[pos] > WEIRD_CUT                        # version 2: weirdness > 0.5
+        weird[i] = w[pos]
         rank[i] = int((w > w[pos]).sum()) + 1
-    fk['flagged'], fk['rank'] = flagged, rank
-    fk['found'] = fk['flagged'] & fk['cut']
+    fk['weirdness'], fk['rank'] = weird, rank
+    fk['flagged_v1'], fk['flagged_v2'] = flag1, flag2
+    fk['found_v1'] = fk['flagged_v1'] & fk['cut']
+    fk['found_v2'] = fk['flagged_v2'] & fk['cut']
 
-    # Part B: shape group and dust temperature, for fakes that pass the excess cut
-    fk['shape_group'] = ''
+    # Part B: shape group in each version, and dust temperature, for fakes that pass the excess cut
     inB = fk['cut'].to_numpy()
-    if inB.any():
-        Xb = ((fk.loc[inB, B_FEAT] - ctx['medB']) / ctx['madB']).to_numpy(float)
-        lab = ctx['km'].predict(Xb)
-        fk.loc[inB, 'shape_group'] = np.where(lab == ctx['warm_label'], 'warm', 'cool/flat')
+    for v, G in ctx['groups'].items():
+        fk[f'group_v{v}'] = ''
+        if inB.any():
+            Xb = ((fk.loc[inB, G['feats']] - G['med']) / G['mad']).to_numpy(float)
+            lab = G['km'].predict(Xb)
+            fk.loc[inB, f'group_v{v}'] = np.where(lab == G['warm_label'], 'warm', 'cool/flat')
     fk['T_rec'] = [temp_from_shape(s) if (cut and w8) else np.nan
                    for s, cut, w8 in zip(fk['shape_I4'], fk['cut'], fk['warm_8um'])]
     fk['T_rec_max'] = [temp_from_shape(s + 2 * e) if (cut and not w8) else np.nan
                        for s, e, cut, w8 in zip(fk['shape_I4'], fk['eshape_I4'], fk['cut'], fk['warm_8um'])]
     fk['host'] = fk['name']
     keep = ['kind', 'iT', 'iF', 'T_in', 'f_in', 'host', 'group', 'Teff', 'dust_24', 'ratio_M1', 'exsig_M1',
-            'ratio_I4', 'exsig_I4', 'cut', 'flagged', 'rank', 'found', 'shape_I4', 'warm_8um', 'shape_group',
-            'T_rec', 'T_rec_max']
+            'ratio_I4', 'exsig_I4', 'cut', 'weirdness', 'rank', 'flagged_v1', 'found_v1', 'flagged_v2',
+            'found_v2', 'shape_I2', 'shape_I4', 'warm_8um', 'group_v1', 'group_v2', 'T_rec', 'T_rec_max']
     return fk[keep]
 
 
@@ -249,6 +284,12 @@ def faintest(pcts, level):
 
 def pct_light(f):
     return f'{100 * f:.2g}%'
+
+
+def warm_pct_bright(res, v, T):
+    """% of fakes in the warm group, for fakes at dust temperature T, f >= 0.1%, that pass the cut."""
+    s = res[(res['kind'] == 'grid') & (res['T_in'] == T) & res['cut'] & (res['f_in'] >= BRIGHT_F)]
+    return 100 * (s[f'group_v{v}'] == 'warm').mean() if len(s) >= MIN_FOR_PCT else np.nan
 
 
 # ======================================================================
@@ -278,56 +319,49 @@ def main():
 
     a = df[df['comparable']].dropna(subset=A_FEAT).copy()
     iso = IsolationForest(contamination=CONTAMINATION, random_state=42).fit(a[A_FEAT])
-    a['flagged'] = iso.predict(a[A_FEAT]) == -1
-    a['picked'] = a['flagged'] & a['cut']
-
+    a['flagged_v1'] = iso.predict(a[A_FEAT]) == -1
+    a['flagged_v2'] = -iso.score_samples(a[A_FEAT]) > WEIRD_CUT   # same trees as contamination='auto'
     B = df[df['cut']].copy()
-    medB = B[B_FEAT].median()
-    madB = 1.4826 * (B[B_FEAT] - medB).abs().median()
-    XB = (B[B_FEAT] - medB) / madB
-    XB = XB.to_numpy(float)       # plain numbers, so predicting the fakes later gives no warning
-    scores = {kk: silhouette_score(XB, KMeans(n_clusters=kk, n_init=20, random_state=0).fit_predict(XB))
-              for kk in K_RANGE}
-    best_k = max(scores, key=scores.get)
-    km = KMeans(n_clusters=best_k, n_init=20, random_state=0).fit(XB)
-    B['label'] = km.labels_
-    warm_label = int(B.groupby('label')['shape_I4'].median().idxmax())   # the group with the most 8 um light
-    B['shape_group'] = np.where(B['label'] == warm_label, 'warm', 'cool/flat')
+    groups = {v: fit_groups(B, V['B_FEAT']) for v, V in VERSIONS.items()}
 
-    print(f'Clean K stars: {len(df)}, comparable: {len(a)}, with a real 24 um excess: {len(B)} '
-          f'({best_k} shape groups, warm group = {int((B["shape_group"] == "warm").sum())} stars)')
-    print(f"Real picks (Isolation Forest seed 42 + excess cut): {', '.join(a.loc[a['picked'], 'name'])}")
+    print(f'Clean K stars: {len(df)}, comparable: {len(a)}, with a real 24 um excess: {len(B)}')
+    for v, V in VERSIONS.items():
+        picks = a.loc[a[f'flagged_v{v}'] & a['cut'], 'name']
+        G = groups[v]
+        print(f"Version {v} ({V['rule']}): picks {', '.join(picks)}; "
+              f"{G['k']} shape groups, warm group = {int(G['warm'].sum())} stars")
 
-    # same answer as excess_shape.py? (only if its output file is there)
-    saved = DATA / 'excess_shape.csv'
-    if saved.exists():
+    # same answer as excess_shape.py / excess_shape_v2.py? (only if their output files are there)
+    for v, V in VERSIONS.items():
+        saved = DATA / V['saved']
+        if not saved.exists():
+            print(f"(no data/{V['saved']} yet, so no check against it)")
+            continue
         s = pd.read_csv(saved)
-        same_picks = set(s.loc[s['picked'] == True, 'objid']) == set(a.loc[a['picked'], 'objid'])
+        same_picks = set(s.loc[s['picked'] == True, 'objid']) == set(a.loc[a[f'flagged_v{v}'] & a['cut'], 'objid'])
         sB = s[s['shape_group'].notna()]
         warm_saved = sB.groupby('shape_group')['shape_I4'].median().idxmax()
-        same_groups = set(sB.loc[sB['shape_group'] == warm_saved, 'objid']) == \
-            set(B.loc[B['shape_group'] == 'warm', 'objid'])
-        ok = same_picks and same_groups
-        print('Check against data/excess_shape.csv: ' + ('same picks and same warm group, good' if ok else
-              'DIFFERENT from excess_shape.py, rerun excess_shape.py first or check the settings'))
+        same_groups = set(sB.loc[sB['shape_group'] == warm_saved, 'objid']) == set(B.loc[groups[v]['warm'], 'objid'])
+        print(f"Check against data/{V['saved']}: " + ('same picks and same warm group, good'
+              if same_picks and same_groups else
+              f"DIFFERENT, rerun {V['saved'].replace('.csv', '.py')} first or check the settings"))
 
     # ---- J2133+83's own disk, measured by this pipeline ----
     j = df[df['objid'] == J2133].iloc[0]
-    jB = B[B['objid'] == J2133].iloc[0]
-    j_T = temp_from_shape(jB['shape_I4'])
+    j_T = temp_from_shape(j['shape_I4'])
     j_f = float(j['ex_M1'] * 1e-32 / bnu(LAM['M1'], j_T) * SIGMA_SB * j_T**4 / np.pi / star_light(j))
     print(f"J2133+83: 24 um {j['ratio_M1']:.1f}x the star, dust about {j_T:.0f} K, f = {j_f:.1e} "
           f"({pct_light(j_f)} of the star's light)")
 
     # ---- hosts and the fake grid ----
-    hosts = a[~a['cut'] & ~a['flagged']]
+    hosts = a[~a['cut'] & ~a['flagged_v1']]
     if args.quick:
         hosts = hosts.iloc[:5]
     grid = [('grid', iT, iF, T, f) for iT, T in enumerate(T_GRID) for iF, f in enumerate(F_GRID)]
     grid.append(('J2133 copy', -1, -1, j_T, j_f))
     Xa = a[A_FEAT].to_numpy(float)
     pos_of = {idx: k for k, idx in enumerate(a.index)}
-    ctx = dict(cal=cal, cal_all=cal_all, km=km, medB=medB, madB=madB, warm_label=warm_label)
+    ctx = dict(cal=cal, cal_all=cal_all, groups=groups)
     n_fakes = len(hosts) * len(grid)
     print(f'\nFake disks: {len(T_GRID)} temperatures x {len(F_GRID)} brightnesses + a J2133+83 copy, '
           f'in {len(hosts)} normal stars = {n_fakes} fakes, one Isolation Forest each')
@@ -344,68 +378,88 @@ def main():
         if k % 10 == 0 or k == len(hosts):
             print(f'  {k}/{len(hosts)} stars done ({time.time() - t0:.0f} s)')
     res = pd.concat(parts, ignore_index=True)
-    res['warm'] = res['shape_group'] == 'warm'
 
     # ---- summary per grid cell ----
     g = res[res['kind'] == 'grid']
     keys = ['iT', 'iF', 'T_in', 'f_in']
-    summ = g.groupby(keys).agg(stars=('host', 'size'), pct_cut=('cut', 'mean'), pct_found=('found', 'mean'),
+    summ = g.groupby(keys).agg(stars=('host', 'size'), pct_cut=('cut', 'mean'),
+                               pct_found_v1=('found_v1', 'mean'), pct_found_v2=('found_v2', 'mean'),
                                median_rank=('rank', 'median'), median_ratio_24=('ratio_M1', 'median'),
                                n_cut=('cut', 'sum')).reset_index()
-    summ[['pct_cut', 'pct_found']] *= 100
-    warm = g[g['cut']].groupby(keys)['warm'].mean().mul(100).rename('pct_warm').reset_index()
-    summ = summ.merge(warm, on=keys, how='left')
-    summ.loc[summ['n_cut'] < MIN_FOR_PCT, 'pct_warm'] = np.nan
+    summ[['pct_cut', 'pct_found_v1', 'pct_found_v2']] *= 100
+    for v in VERSIONS:
+        warm = (g[g['cut']].assign(w=lambda t: t[f'group_v{v}'] == 'warm')
+                .groupby(keys)['w'].mean().mul(100).rename(f'pct_warm_v{v}').reset_index())
+        summ = summ.merge(warm, on=keys, how='left')
+        summ.loc[summ['n_cut'] < MIN_FOR_PCT, f'pct_warm_v{v}'] = np.nan
     summ['pct_of_star_light'] = 100 * summ['f_in']
 
     # ---- print the results ----
     print(f'\n========== How faint a disk can we find? ({len(hosts)} normal stars) ==========')
     print(f'Faintest disk found in >= {LEVEL}% of the stars (24 um size = median measured / predicted star)')
-    print(f"{'dust T':>7s}   {'found by the ML':28s} {'passes the excess cut alone':28s} {'warm group*':>11s}")
+    print(f"{'dust T':>7s}   {'ML version 1':20s} {'ML version 2':20s} {'excess cut alone':20s} {'warm group* v1':>14s} {'v2':>5s}")
     for iT, T in enumerate(T_GRID):
         col = summ[summ['iT'] == iT].sort_values('iF')
         cells = []
-        for what in ('pct_found', 'pct_cut'):
+        for what in ('pct_found_v1', 'pct_found_v2', 'pct_cut'):
             i = faintest(col[what].to_numpy(), LEVEL)
             cells.append('not even at 1%' if i is None else
-                         f"f >= {pct_light(F_GRID[i])} (24 um {col['median_ratio_24'].iloc[i]:.1f}x)")
-        bright = g[(g['iT'] == iT) & g['cut'] & (g['f_in'] >= 1e-3)]
-        wtxt = f"{100 * bright['warm'].mean():.0f}%" if len(bright) >= MIN_FOR_PCT else '-'
-        print(f'{T:6d} K   {cells[0]:28s} {cells[1]:28s} {wtxt:>11s}')
-    print('* % in the warm shape group, for fakes at f >= 0.1% that pass the excess cut')
+                         f"f >= {pct_light(F_GRID[i])} ({col['median_ratio_24'].iloc[i]:.1f}x)")
+        wtxt = [f'{p:.0f}%' if np.isfinite(p) else '-' for p in (warm_pct_bright(res, v, T) for v in VERSIONS)]
+        print(f'{T:6d} K   {cells[0]:20s} {cells[1]:20s} {cells[2]:20s} {wtxt[0]:>14s} {wtxt[1]:>5s}')
+    print(f'* % in the warm shape group, for fakes at f >= {pct_light(BRIGHT_F)} that pass the excess cut')
 
     jc = res[res['kind'] == 'J2133 copy']
     jcut = jc[jc['cut']]
-    print(f'\nCopies of J2133+83\'s disk ({j_T:.0f} K, {pct_light(j_f)} of the star\'s light) in '
-          f'{len(jc)} normal stars:')
-    print(f"  found by the ML: {int(jc['found'].sum())}/{len(jc)}, "
-          f"median weirdness rank {jc['rank'].median():.0f} of {len(a)}")
-    print(f"  passes the excess cut: {len(jcut)}/{len(jc)}, lands in the warm group: "
-          f"{int(jcut['warm'].sum())}/{len(jcut)}")
+    n = len(jc)
+    print(f"\nCopies of J2133+83's disk ({j_T:.0f} K, {pct_light(j_f)} of the star's light) in {n} normal stars:")
+    print(f"{'':28s}{'version 1':>11s}{'version 2':>11s}")
+    print(f"{'  found by the ML':28s}{int(jc['found_v1'].sum()):>6d}/{n:<4d}{int(jc['found_v2'].sum()):>6d}/{n:<4d}")
+    print(f"{'  lands in the warm group':28s}{int((jcut['group_v1'] == 'warm').sum()):>6d}/{len(jcut):<4d}"
+          f"{int((jcut['group_v2'] == 'warm').sum()):>6d}/{len(jcut):<4d}")
+    print(f"  median weirdness rank {jc['rank'].median():.0f} of {len(a)}, "
+          f"median weirdness {jc['weirdness'].median():.2f} (version 2 flags above {WEIRD_CUT})")
     tr = jcut['T_rec'].dropna()
     if len(tr):
-        print(f'  dust temperature back from the 8/24 um shape: median {tr.median():.0f} K '
+        print(f'  dust temperature back from the 8/24 um shape (same in both versions): median {tr.median():.0f} K '
               f'(middle 68%: {tr.quantile(0.16):.0f} to {tr.quantile(0.84):.0f} K), from {len(tr)} with an 8 um signal')
+    for v in VERSIONS:
+        missed = jc[~jc[f'found_v{v}']]
+        if len(missed):
+            print(f"  version {v} missed it in: {', '.join(missed['host'])}")
 
-    missed = jc[~jc['found']]
-    if len(missed):
-        print(f"  missed in: {', '.join(missed['host'])} (weirdness rank "
-              f"{', '.join(str(int(r)) for r in missed['rank'])})")
+    # ---- false alarms: hosts with no fake disk at all (the faintest grid row is basically nothing) ----
+    nothing = g[g['iF'] == 0]
+    print(f"\nWith almost no dust (f = {pct_light(F_GRID[0])}), stars found by mistake: "
+          f"version 1 {int(nothing['found_v1'].sum())}/{len(nothing)}, "
+          f"version 2 {int(nothing['found_v2'].sum())}/{len(nothing)}")
 
     # ---- save ----
     tag = '_quick' if args.quick else ''
     res.to_csv(DATA / f'fake_disks{tag}.csv', index=False)
     summ.round(3).to_csv(DATA / f'fake_disks_summary{tag}.csv', index=False)
     print(f'\nSaved data/fake_disks{tag}.csv and data/fake_disks_summary{tag}.csv')
-    make_figure(summ, res, j_T, j_f, FIGS / f'fake_disks{tag}.png', len(hosts))
-    print(f'Saved figures/fake_disks{tag}.png ({time.time() - t0:.0f} s total)')
+    for v in VERSIONS:
+        name = f"fake_disks{'' if v == 1 else '_v2'}{tag}.png"
+        make_figure(summ, res, j_T, j_f, FIGS / name, len(hosts), v)
+        print(f'Saved figures/{name}')
+    make_compare_figure(summ, res, j_T, j_f, FIGS / f'fake_disks_compare{tag}.png', len(hosts))
+    print(f'Saved figures/fake_disks_compare{tag}.png ({time.time() - t0:.0f} s total)')
 
 
 # ======================================================================
-# Figure
+# Figures
 # ======================================================================
-def make_figure(summ, res, j_T, j_f, path, n_hosts):
-    INK, INK2, MUTED, GRID, AXIS, BG = '#0b0b0b', '#52514e', '#898781', '#e1e0d9', '#c3c2b7', '#fcfcfb'
+INK, INK2, MUTED, GRID, AXIS, BG = '#0b0b0b', '#52514e', '#898781', '#e1e0d9', '#c3c2b7', '#fcfcfb'
+
+
+def style(ax):
+    ax.set_facecolor(BG)
+    ax.tick_params(length=0)
+
+
+def make_figure(summ, res, j_T, j_f, path, n_hosts, v):
+    """Three panels for one version: found %, warm group %, dust temperature."""
     NONE = '#f0efec'
     BLUES = LinearSegmentedColormap.from_list(
         'found', ['#f3f7fd', '#cde2fb', '#86b6ef', '#3987e5', '#1c5cab', '#0d366b'])
@@ -440,8 +494,8 @@ def make_figure(summ, res, j_T, j_f, path, n_hosts):
     fig.patch.set_facecolor(BG)
 
     # A: found by the ML
-    im1 = a1.imshow(grid_of('pct_found'), origin='lower', aspect='auto', cmap=BLUES, vmin=0, vmax=100)
-    a1.plot(*step_line(grid_of('pct_found')), color=INK, lw=2, solid_capstyle='butt')
+    im1 = a1.imshow(grid_of(f'pct_found_v{v}'), origin='lower', aspect='auto', cmap=BLUES, vmin=0, vmax=100)
+    a1.plot(*step_line(grid_of(f'pct_found_v{v}')), color=INK, lw=2, solid_capstyle='butt')
     a1.plot(*step_line(grid_of('pct_cut')), color=INK2, lw=1.5, ls=(0, (4, 2)))
     cb1 = fig.colorbar(im1, ax=a1, fraction=0.05, pad=0.02)
     cb1.set_label('% of normal stars where the fake is found', color=INK2)
@@ -452,8 +506,8 @@ def make_figure(summ, res, j_T, j_f, path, n_hosts):
     a1.legend(handles=leg1, fontsize=8.5, frameon=False, loc='upper center', bbox_to_anchor=(0.5, -0.13), ncol=2)
 
     # B: lands in the warm group
-    im2 = a2.imshow(np.ma.masked_invalid(grid_of('pct_warm')), origin='lower', aspect='auto', cmap=ORANGES,
-                    vmin=0, vmax=100)
+    im2 = a2.imshow(np.ma.masked_invalid(grid_of(f'pct_warm_v{v}')), origin='lower', aspect='auto',
+                    cmap=ORANGES, vmin=0, vmax=100)
     cb2 = fig.colorbar(im2, ax=a2, fraction=0.05, pad=0.02)
     cb2.set_label('% landing in the warm group (of fakes that pass the cut)', color=INK2)
     a2.set_title('B. Does it land in the warm group?', loc='left', fontsize=11.5, color=INK)
@@ -474,13 +528,13 @@ def make_figure(summ, res, j_T, j_f, path, n_hosts):
         for side in ax.spines.values():
             side.set_visible(False)
 
-    # C: dust temperature measured from the 8/24 um shape
+    # C: dust temperature measured from the 8/24 um shape (same for both versions)
     g = res[(res['kind'] == 'grid') & res['cut'] & res['warm_8um']]
     pts = []
     for T in T_GRID:
-        v = g.loc[g['T_in'] == T, 'T_rec'].dropna()
-        if len(v) >= MIN_FOR_PCT:
-            pts.append((T, v.median(), v.quantile(0.16), v.quantile(0.84), len(v)))
+        vals = g.loc[g['T_in'] == T, 'T_rec'].dropna()
+        if len(vals) >= MIN_FOR_PCT:
+            pts.append((T, vals.median(), vals.quantile(0.16), vals.quantile(0.84), len(vals)))
     lim = (0, max(T_GRID) * 1.15)
     a3.plot(lim, lim, color=AXIS, lw=1, ls=(0, (4, 2)), zorder=1)
     a3.text(lim[1] * 0.97, lim[1] * 0.93, 'measured = fake', color=MUTED, fontsize=8.5, ha='right', rotation=0)
@@ -508,11 +562,78 @@ def make_figure(summ, res, j_T, j_f, path, n_hosts):
     a3.legend(fontsize=8.5, frameon=False, loc='upper center', bbox_to_anchor=(0.5, -0.13), ncol=1)
     a3.set_facecolor(BG)
 
-    fig.suptitle(f'Fake disk test: fake dust added to {n_hosts} normal stars, one at a time, '
-                 'then the same pipeline as excess_shape.py', x=0.01, ha='left', fontsize=12.5, color=INK)
+    fig.suptitle(f"Fake disk test, version {v} ({VERSIONS[v]['rule']}): fake dust added to {n_hosts} normal "
+                 'stars, one at a time', x=0.01, ha='left', fontsize=12.5, color=INK)
     fig.tight_layout()
     FIGS.mkdir(exist_ok=True)
     fig.savefig(path, dpi=200, facecolor=BG)
+    plt.close(fig)
+
+
+def make_compare_figure(summ, res, j_T, j_f, path, n_hosts):
+    """Version 1 vs version 2 on the same fakes: how faint, and which group."""
+    V1, V2, CUT = '#a3a29d', '#2a78d6', INK          # old = gray, new = blue, the simple cut = ink dashed
+    plt.rcParams.update({'font.size': 10, 'axes.edgecolor': AXIS, 'axes.labelcolor': INK2,
+                         'xtick.color': INK2, 'ytick.color': INK2, 'text.color': INK})
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(13, 5.4))
+    fig.patch.set_facecolor(BG)
+    T = np.array(T_GRID, float)
+
+    # A: faintest disk found in >= 90% of stars, per temperature (lower = finds fainter disks)
+    def faint_curve(col):
+        ys = []
+        for iT in range(len(T_GRID)):
+            c_ = summ[summ['iT'] == iT].sort_values('iF')
+            i = faintest(c_[col].to_numpy(), LEVEL)
+            ys.append(np.nan if i is None else 100 * F_GRID[i])
+        return np.array(ys)
+
+    lines = [('pct_found_v1', 'ML version 1 (weirdest 5%)', V1, '-', 'o', 2.5),
+             ('pct_found_v2', f'ML version 2 (weirdness > {WEIRD_CUT})', V2, '-', 'o', 2.5),
+             ('pct_cut', 'Excess cut alone', CUT, (0, (4, 2)), None, 1.4)]
+    for col, lab, colr, ls, mk, lw in lines:
+        y = faint_curve(col)
+        a1.plot(T, y, color=colr, ls=ls, lw=lw, marker=mk, ms=8, mec='white', mew=1.5, label=lab,
+                zorder=3 if col != 'pct_cut' else 4)
+    a1.plot(j_T, 100 * j_f, marker='*', ms=17, mfc='white', mec=INK, mew=1.2, ls='', zorder=5,
+            label="J2133+83's disk")
+    a1.annotate('J2133+83', (j_T, 100 * j_f), xytext=(10, 4), textcoords='offset points', fontsize=9,
+                fontweight='bold', color=INK)
+    a1.set_yscale('log')
+    a1.set_ylim(100 * F_GRID[6] * 0.8, 100 * F_GRID[-1] * 1.6)
+    a1.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f'{y:g}%'))
+    a1.set_ylabel("Faintest disk found in >= 90% of stars\n(% of the star's light, lower = better)")
+    a1.set_title('A. How faint a disk does each version find?', loc='left', fontsize=11.5, color=INK)
+
+    # B: % of fakes landing in the warm group, per temperature (f >= 0.1%, passing the cut)
+    jc = res[(res['kind'] == 'J2133 copy') & res['cut']]
+    for v, colr, lab in ((1, V1, 'Version 1 (4.5 + 8 um shape + size)'), (2, V2, 'Version 2 (8 um shape + size)')):
+        y = [warm_pct_bright(res, v, t) for t in T_GRID]
+        a2.plot(T, y, color=colr, lw=2.5, marker='o', ms=8, mec='white', mew=1.5, label=lab, zorder=3)
+        jw = 100 * (jc[f'group_v{v}'] == 'warm').mean()
+        a2.plot(j_T, jw, marker='*', ms=17, color=colr, mec=INK, mew=1, ls='', zorder=5)
+        a2.annotate(f'{jw:.0f}%', (j_T, jw), xytext=(10, -3), textcoords='offset points', fontsize=9,
+                    color=INK, fontweight='bold')
+    a2.plot([], [], marker='*', ms=13, mfc='white', mec=INK, ls='', label="Copies of J2133+83's disk")
+    a2.set_ylim(-5, 105)
+    a2.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f'{y:g}%'))
+    a2.set_ylabel(f'Fakes landing in the warm group\n(f >= {pct_light(BRIGHT_F)}, passing the cut)')
+    a2.set_title('B. Does the warm group mean warm dust?', loc='left', fontsize=11.5, color=INK)
+
+    for ax in (a1, a2):
+        style(ax)
+        ax.set_xticks(T_GRID)
+        ax.set_xlabel('Fake dust temperature (K)')
+        ax.grid(color=GRID, lw=0.8, zorder=0)
+        ax.spines[['top', 'right']].set_visible(False)
+        ax.legend(fontsize=8.5, frameon=False, loc='upper center', bbox_to_anchor=(0.5, -0.13), ncol=2)
+
+    fig.suptitle(f'Fake disk test, version 1 vs version 2: the same fakes in {n_hosts} normal stars',
+                 x=0.01, ha='left', fontsize=12.5, color=INK)
+    fig.tight_layout()
+    FIGS.mkdir(exist_ok=True)
+    fig.savefig(path, dpi=200, facecolor=BG)
+    plt.close(fig)
 
 
 if __name__ == '__main__':

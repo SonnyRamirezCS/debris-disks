@@ -22,10 +22,15 @@ original warm group's than to the original cool/flat group's.
 Run from the debris-disks folder:  python cluster_stability.py
 Needs data/excess_shape.csv (made by excess_shape.py)
 Makes data/cluster_stability.csv and figures/cluster_stability.png
+
+Version 2 groups (excess_shape_v2.py, no 4.5 um shape):  python cluster_stability.py --version 2
+Needs data/excess_shape_v2.csv, makes data/cluster_stability_v2.csv and figures/cluster_stability_v2.png.
+Same tests; test 6 ("shape only") then uses the 8 um shape alone.
 """
 import os
 os.environ.setdefault('OMP_NUM_THREADS', '1')   # quiets a harmless KMeans warning on Windows
 
+import argparse
 from pathlib import Path
 
 import matplotlib
@@ -44,7 +49,17 @@ DATA, FIGS = HERE / 'data', HERE / 'figures'
 SEEDS = 50
 BOOTSTRAPS = 200
 GMM_SEEDS = 20
-FEAT = ['f_shape_I2', 'f_shape_I4', 'f_size']   # same features as excess_shape.py Part B
+ap = argparse.ArgumentParser()
+ap.add_argument('--version', type=int, choices=[1, 2], default=1,
+                help='1 = groups from excess_shape.py, 2 = groups from excess_shape_v2.py')
+VERSION = ap.parse_args().version
+TAG = '' if VERSION == 1 else '_v2'
+if VERSION == 1:
+    FEAT = ['f_shape_I2', 'f_shape_I4', 'f_size']   # same features as excess_shape.py Part B
+    SHAPE_ONLY = ['f_shape_I2', 'f_shape_I4']
+else:
+    FEAT = ['f_shape_I4', 'f_size']                 # same features as excess_shape_v2.py Part B
+    SHAPE_ONLY = ['f_shape_I4']
 NAMED = {'SSTSL2 J213307.73+830501.2': 'J2133+83', 'SSTSL2 J084517.41-785937.1': 'J0845-78'}
 
 # plot colors: J2133+83 in the warm group's orange, J0845-78 in the cool/flat group's blue
@@ -53,7 +68,8 @@ COLOR = {'J2133+83': '#eb6834', 'J0845-78': '#2a78d6'}
 INK, INK2, MUTED, GRID, AXIS, BG = '#0b0b0b', '#52514e', '#898781', '#e1e0d9', '#c3c2b7', '#fcfcfb'
 
 # ---- load and rebuild the features exactly like excess_shape.py ----
-d = pd.read_csv(DATA / 'excess_shape.csv')
+print(f'Version {VERSION} groups (features: {", ".join(FEAT)})')
+d = pd.read_csv(DATA / f'excess_shape{TAG}.csv')
 B = d[d['shape_group'].notna()].reset_index(drop=True)
 B['f_shape_I2'] = B['shape_I2'].clip(-1, 3)
 B['f_shape_I4'] = B['shape_I4'].clip(-1, 3)
@@ -110,7 +126,7 @@ for s in range(GMM_SEEDS):
     record(TESTS[3], GaussianMixture(n_components=2, n_init=3, random_state=s).fit(X).predict(X))
 
 record(TESTS[4], kmeans(3, X, 0, n_init=20).labels_)
-record(TESTS[5], kmeans(2, X[['f_shape_I2', 'f_shape_I4']], 0, n_init=20).labels_)
+record(TESTS[5], kmeans(2, X[SHAPE_ONLY], 0, n_init=20).labels_)
 
 R = pd.DataFrame(runs)
 summ = R.groupby('test', sort=False).agg(
@@ -128,8 +144,8 @@ for t, r in summ.iterrows():
     print(f'  {t:28s} agreement {r.agreement:.2f}{rng_txt:16s} warm group ~{r.warm_size:3.0f} stars | '
           + ' | '.join(f'{nm} warm in {r[f"{nm}_warm_pct"]:3.0f}% of runs' for nm in NAMED.values()))
 
-summ.round(3).to_csv(DATA / 'cluster_stability.csv')
-print('\nSaved data/cluster_stability.csv')
+summ.round(3).to_csv(DATA / f'cluster_stability{TAG}.csv')
+print(f'\nSaved data/cluster_stability{TAG}.csv')
 
 # ---- figure ----
 plt.rcParams.update({'font.size': 10, 'axes.edgecolor': AXIS, 'axes.labelcolor': INK2,
@@ -146,7 +162,7 @@ for yi, (t, r) in zip(y, summ.iterrows()):
     a1.text(r.agreement + 0.03, yi + 0.2, f'{r.agreement:.2f}', fontsize=9, color=INK)
 a1.set_xlim(0, 1.08)
 a1.set_xlabel('Agreement with the original groups (ARI: 1 = identical)')
-a1.set_title('Do the same groups come back?', loc='left', fontsize=11.5, color=INK)
+a1.set_title(f'Do the same groups come back? (version {VERSION})', loc='left', fontsize=11.5, color=INK)
 a1.set_yticks(y, TESTS)
 
 # right: how often each star lands in the warm group
@@ -164,5 +180,5 @@ for ax in (a1, a2):
     ax.tick_params(length=0)
     ax.set_ylim(-0.6, len(TESTS) - 0.4)
 fig.tight_layout()
-fig.savefig(FIGS / 'cluster_stability.png', dpi=200, facecolor=BG)
-print('Saved figures/cluster_stability.png')
+fig.savefig(FIGS / f'cluster_stability{TAG}.png', dpi=200, facecolor=BG)
+print(f'Saved figures/cluster_stability{TAG}.png')
