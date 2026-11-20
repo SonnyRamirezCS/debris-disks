@@ -1,0 +1,13 @@
+Office hours with Professor Skorpen, Tue Nov 3, 12 PM
+
+1. I ran our 24 micron image check on all 116 stars with an excess, plus 52 plain stars with no excess as a control. The warm group is off-center about as often as the plain stars (50% vs 54%), but the cool/flat group is off-center a lot more often (83%, and 46% vs 19% for the strict cutoff). Is it fair to say on Dec 18 that the warm group looks like normal stars and the cool/flat group has extra off-center sources, most likely background galaxies blended in?
+
+2. Our check calls about half of the plain stars "off-center" even though their 24 micron light has to come from the star, so the 2.5x cutoff we picked is too loose. Is it OK to set the cutoff from the control stars instead (like the level only 1 in 10 plain stars reaches), or is there a better way to estimate how much one star's center should wobble?
+
+3. J2133+83 comes out 1.06" off-center, 3.4x the field scatter, and half of the plain stars are more off-center than that. Is it fair to say its 24 micron light is centered on the star? Also, the faint IRAC 3.6 "neighbor" 3.5" south of it only shows up in the regular SEIP mosaic, not the median mosaic or at 8 microns. Does that sound like an artifact, and should I check the individual frames? (figure: J2133_neighbor_artifact.png)
+
+4. J0845-78 is more off-center than about 9 in 10 plain stars once its own noise is counted, and two separate MIPS observations agree on the offset. Is that enough to call it a likely blend, or should we keep it as a candidate? IRSA also has MIPS 70/160 and Herschel PACS 100/160 and SPIRE maps of that area, and CatWISE lists a faint source 4.7" north-northwest that doesn't show in IRAC 3.6. Are any of those worth following up? (figure: J0845_catwise_source.png)
+
+5. Stars with an excess are about 3 times as likely as the plain stars to have another IRAC source within 6" (38% vs 13%). Should we take those out before the clustering, since some of their excess might just be the neighbor's light?
+
+6. At the Oct 23 roundtable you said we could refine the SED model with dust emission or star emission. Did I hear that right, and which one should we start with? If you have it, could you also share your model's 24 micron flux for J2133+83 so I can compare it to our roughly 9.4x excess?
