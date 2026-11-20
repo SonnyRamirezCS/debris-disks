@@ -1,0 +1,4 @@
+sector,n_points,best_period_d,fap,semi_amp_ppt,scatter_ppt,aperture_pixels
+8,951,11.757,1.45e-34,0.84,1.37,13
+7,1086,6.296,2.26e-19,0.23,0.57,16
+33,3484,11.294,6.09e-39,0.27,0.81,14
